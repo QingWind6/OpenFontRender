@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TTF 转 C 头文件工具 (ESP32/Embedded)</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/opentype.js/dist/opentype.min.js"></script>
+    <style>
+        body { font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f3f4f6; }
+        .cyber-card { background: white; border-radius: 12px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .progress-bar { transition: width 0.1s linear; }
+        /* 简单的淡入淡出动画 */
+        .fade-enter-active, .fade-leave-active { transition: opacity 0.5s; }
+        .fade-enter-from, .fade-leave-to { opacity: 0; }
+    </style>
+</head>
+<body>
+    <div id="app" class="min-h-screen py-10 px-4 sm:px-6 lg:px-8">
+        
+        <div class="max-w-4xl mx-auto flex justify-between items-center mb-8">
+            <h1 class="text-3xl font-bold text-gray-800 tracking-tight">
+                <span class="text-indigo-600">TTF</span>2Bin <span class="text-sm font-normal text-gray-500">for OpenFontRender</span>
+            </h1>
+            <button @click="toggleLang" class="px-4 py-2 bg-white border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none transition">
+                {{ t('langSwitch') }}
+            </button>
+        </div>
+
+        <div class="max-w-4xl mx-auto grid grid-cols-1 gap-6">
+            
+            <div class="cyber-card p-6 border-l-4 border-indigo-600">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('step1_title') }}</h2>
+                <div class="flex items-center justify-center w-full">
+                    <label for="dropzone-file" class="flex flex-col items-center justify-center w-full h-32 border-2 border-gray-300 border-dashed rounded-lg cursor-pointer bg-gray-50 hover:bg-gray-100 transition relative overflow-hidden">
+                        <div class="flex flex-col items-center justify-center pt-5 pb-6 z-10">
+                            <svg class="w-8 h-8 mb-4 text-gray-500" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 20 16">
+                                <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 13h3a3 3 0 0 0 0-6h-.025A5.56 5.56 0 0 0 16 6.5 5.5 5.5 0 0 0 5.207 5.021C5.137 5.017 5.071 5 5 5a4 4 0 0 0 0 8h2.167M10 15V6m0 0L8 8m2-2 2 2"/>
+                            </svg>
+                            <p class="mb-2 text-sm text-gray-500"><span class="font-semibold">{{ t('click_upload') }}</span></p>
+                            <p class="text-xs text-gray-500">.TTF, .OTF</p>
+                        </div>
+                        <input id="dropzone-file" type="file" accept=".ttf,.otf" class="hidden" @change="handleFileChange" />
+                    </label>
+                </div>
+                <div v-if="fileName" class="mt-2 text-sm text-green-600 font-semibold flex items-center animate-pulse">
+                    ✓ {{ t('selected_file') }}: {{ fileName }} ({{ (fileSize / 1024).toFixed(1) }} KB)
+                </div>
+            </div>
+
+            <div class="cyber-card p-6 transition-opacity duration-300" :class="fileLoaded ? 'opacity-100' : 'opacity-50 pointer-events-none'">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-medium text-gray-900 flex items-center">
+                        {{ t('step2_title') }}
+                        <span class="ml-2 px-2 py-0.5 text-xs bg-indigo-100 text-indigo-800 rounded-full">Recommended</span>
+                    </h2>
+                    <div class="flex items-center">
+                        <input id="enable-subset" type="checkbox" v-model="enableSubset" class="w-5 h-5 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer">
+                        <label for="enable-subset" class="ml-2 text-sm font-bold text-gray-900 cursor-pointer">{{ t('enable_subset') }}</label>
+                    </div>
+                </div>
+
+                <div v-if="enableSubset" class="space-y-4 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                    <p class="text-xs text-orange-600 font-semibold mb-2">
+                        <span class="inline-block mr-1">⚠️</span> 
+                        {{ lang === 'zh' ? '注意：系统会自动强制包含“空格”和“.notdef”以确保兼容性。' : 'Note: Space and .notdef are automatically included for compatibility.' }}
+                    </p>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 select-none">
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-200 p-2 rounded transition">
+                            <input type="checkbox" v-model="presets.digits" class="rounded text-indigo-600 w-4 h-4">
+                            <span class="text-sm">0-9 ({{ t('digits') }})</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-200 p-2 rounded transition">
+                            <input type="checkbox" v-model="presets.en_upper" class="rounded text-indigo-600 w-4 h-4">
+                            <span class="text-sm">A-Z ({{ t('upper') }})</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-200 p-2 rounded transition">
+                            <input type="checkbox" v-model="presets.en_lower" class="rounded text-indigo-600 w-4 h-4">
+                            <span class="text-sm">a-z ({{ t('lower') }})</span>
+                        </label>
+                        <label class="flex items-center space-x-2 cursor-pointer hover:bg-gray-200 p-2 rounded transition">
+                            <input type="checkbox" v-model="presets.symbols" class="rounded text-indigo-600 w-4 h-4">
+                            <span class="text-sm">{{ t('punctuation') }}</span>
+                        </label>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">{{ t('custom_chars') }}</label>
+                        <textarea v-model="customText" rows="3" class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-3 border font-mono" :placeholder="t('custom_placeholder')"></textarea>
+                    </div>
+                    <div class="flex justify-end text-xs text-gray-500">
+                        <span>{{ t('total_chars_preview') }}: <span class="font-mono font-bold text-indigo-600 text-base">{{ previewCharCount }}</span></span>
+                    </div>
+                </div>
+                <div v-else class="bg-yellow-50 border border-yellow-200 rounded-md p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-yellow-400" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-yellow-700">{{ t('subset_disabled_hint') }}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="cyber-card p-6 transition-opacity duration-300" :class="fileLoaded ? 'opacity-100' : 'opacity-50 pointer-events-none'">
+                <h2 class="text-lg font-medium text-gray-900 mb-4">{{ t('step3_title') }}</h2>
+                
+                <div class="mb-6">
+                    <label for="cpu-power" class="block text-sm font-medium text-gray-700 mb-2 flex justify-between">
+                        <span>{{ t('cpu_usage') }}</span>
+                        <span class="text-indigo-600 font-bold bg-indigo-50 px-2 py-0.5 rounded text-xs">{{ batchSizeLabel }}</span>
+                    </label>
+                    <input type="range" id="cpu-power" min="1" max="5" step="1" v-model.number="cpuLevel" class="w-full h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer accent-indigo-600">
+                    <div class="flex justify-between text-xs text-gray-500 mt-2 px-1">
+                        <span>{{ t('ui_smooth') }}</span>
+                        <span>{{ t('conversion_fast') }}</span>
+                    </div>
+                </div>
+
+                <div v-if="processing" class="space-y-2">
+                    <div class="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 overflow-hidden">
+                        <div class="bg-indigo-600 h-2.5 rounded-full progress-bar" :style="{ width: progress + '%' }"></div>
+                    </div>
+                    <div class="flex justify-between text-xs text-indigo-600 font-medium">
+                        <span class="animate-pulse">{{ statusMessage }}</span>
+                        <span>{{ progress }}%</span>
+                    </div>
+                </div>
+
+                <button @click="startConversion" :disabled="processing" class="mt-4 w-full flex justify-center items-center py-3 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors">
+                    <svg v-if="processing" class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    {{ processing ? t('processing') : t('generate_btn') }}
+                </button>
+            </div>
+
+            <div v-if="resultCode" class="cyber-card p-6 border-2 border-indigo-100">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-lg font-medium text-gray-900">{{ t('result_title') }}</h2>
+                    <div class="space-x-2 flex items-center">
+                        <span class="text-xs text-gray-500 mr-2 bg-gray-100 px-2 py-1 rounded">{{ resultSizeStr }}</span>
+                        <button @click="downloadHeader" class="flex items-center px-4 py-2 bg-green-600 text-white text-sm font-medium rounded hover:bg-green-700 transition shadow-sm">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                            {{ t('download_h') }}
+                        </button>
+                    </div>
+                </div>
+                <div class="bg-gray-800 rounded-lg p-4 overflow-hidden relative group">
+                    <div class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button @click="copyToClipboard" class="text-xs bg-gray-700 text-white px-2 py-1 rounded hover:bg-gray-600">Copy</button>
+                    </div>
+                    <pre class="text-xs text-green-400 font-mono whitespace-pre-wrap max-h-64 overflow-y-auto custom-scrollbar">{{ resultCodePreview }}</pre>
+                </div>
+            </div>
+
+        </div>
+        
+        <footer class="mt-12 text-center text-gray-400 text-sm">
+            <p>Runs locally in your browser. No data uploaded.</p>
+        </footer>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        const i18n = {
+            zh: {
+                langSwitch: 'English',
+                step1_title: '1. 选择字体文件',
+                click_upload: '点击或拖拽上传文件',
+                selected_file: '已就绪',
+                step2_title: '2. 智能裁剪 (Subsetting)',
+                enable_subset: '启用裁剪 (推荐)',
+                subset_disabled_hint: '警告：未启用裁剪将导出完整字体文件。对于中文字体，这可能生成数 MB 的文件，导致 ESP32 闪存不足。',
+                punctuation: '标点符号',
+                digits: '数字',
+                upper: '大写',
+                lower: '小写',
+                cn_warning: '生成时间较长',
+                custom_chars: '自定义字符 (粘贴你需要显示的文字)',
+                custom_placeholder: '在这里粘贴你的UI中用到的所有汉字、符号...',
+                total_chars_preview: '预计包含字符数',
+                step3_title: '3. 性能设置与导出',
+                cpu_usage: '防卡死调节',
+                batch_size: '处理速度',
+                ui_smooth: 'UI流畅 (慢)',
+                conversion_fast: '极速转换 (快)',
+                processing: '处理中...',
+                generate_btn: '开始生成 .h 头文件',
+                result_title: '生成完成',
+                download_h: '下载 .h 文件',
+                batch_labels: ['非常保守', '平衡', '激进', '极速', '火力全开']
+            },
+            en: {
+                langSwitch: '中文切换',
+                step1_title: '1. Select Font File',
+                click_upload: 'Click or Drag to upload',
+                selected_file: 'Ready',
+                step2_title: '2. Smart Subsetting',
+                enable_subset: 'Enable Subsetting (Recommended)',
+                subset_disabled_hint: 'Warning: Full font dump will generate a very large file. This might exceed ESP32 flash storage.',
+                punctuation: 'Symbols',
+                digits: 'Digits',
+                upper: 'Upper',
+                lower: 'Lower',
+                cn_warning: 'Takes longer',
+                custom_chars: 'Custom Characters',
+                custom_placeholder: 'Paste specific text you need here...',
+                total_chars_preview: 'Est. Char Count',
+                step3_title: '3. Performance & Export',
+                cpu_usage: 'Anti-Freeze Tuning',
+                batch_size: 'Speed',
+                ui_smooth: 'Responsive UI',
+                conversion_fast: 'Max Speed',
+                processing: 'Processing...',
+                generate_btn: 'Generate .h Header',
+                result_title: 'Done',
+                download_h: 'Download .h File',
+                batch_labels: ['Very Low', 'Balanced', 'High', 'Very High', 'Max Power']
+            }
+        };
+
+        createApp({
+            setup() {
+                const lang = ref('zh');
+                const file = ref(null);
+                const fileName = ref('');
+                const fileSize = ref(0);
+                const fileLoaded = ref(false);
+                
+                // Subsetting
+                const enableSubset = ref(true); // 默认开启
+                const presets = ref({
+                    digits: true,
+                    en_upper: true,
+                    en_lower: true,
+                    symbols: true
+                });
+                const customText = ref('');
+
+                // Processing
+                const cpuLevel = ref(3);
+                const processing = ref(false);
+                const progress = ref(0);
+                const statusMessage = ref('');
+                
+                // Result
+                const resultCode = ref('');
+                const resultBytes = ref(null);
+
+                const t = (key) => i18n[lang.value][key];
+                const toggleLang = () => { lang.value = lang.value === 'zh' ? 'en' : 'zh'; };
+
+                const handleFileChange = (e) => {
+                    const f = e.target.files[0];
+                    if (!f) return;
+                    file.value = f;
+                    fileName.value = f.name;
+                    fileSize.value = f.size;
+                    fileLoaded.value = true;
+                    resultCode.value = '';
+                };
+
+                // --- 核心修复函数：获取唯一字符集，强制包含空格 ---
+                const getAllUniqueChars = () => {
+                    let chars = new Set();
+                    
+                    // CRITICAL FIX: 必须包含空格 (0x20)，否则 OpenFontRender 无法计算布局
+                    chars.add(' '); 
+
+                    if (presets.value.digits) "0123456789".split('').forEach(c => chars.add(c));
+                    if (presets.value.en_upper) "ABCDEFGHIJKLMNOPQRSTUVWXYZ".split('').forEach(c => chars.add(c));
+                    if (presets.value.en_lower) "abcdefghijklmnopqrstuvwxyz".split('').forEach(c => chars.add(c));
+                    
+                    // 去掉这里的空格，因为上面已经显式添加了，避免混淆
+                    if (presets.value.symbols) "!\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~".split('').forEach(c => chars.add(c));
+                    
+                    if (customText.value) customText.value.split('').forEach(c => chars.add(c));
+                    
+                    return Array.from(chars).join('');
+                };
+
+                const previewCharCount = computed(() => getAllUniqueChars().length);
+                const batchSizeLabel = computed(() => t('batch_labels')[cpuLevel.value - 1]);
+
+                const startConversion = async () => {
+                    if (!file.value) return;
+                    processing.value = true;
+                    progress.value = 0;
+                    resultCode.value = '';
+                    statusMessage.value = t('processing');
+
+                    try {
+                        let finalBuffer;
+                        const arrayBuffer = await file.value.arrayBuffer();
+
+                        if (enableSubset.value) {
+                            statusMessage.value = "Analyzing Font & Subsetting...";
+                            await new Promise(r => setTimeout(r, 50)); // 让UI渲染一帧
+                            
+                            try {
+                                const font = opentype.parse(arrayBuffer);
+                                let chars = getAllUniqueChars();
+
+                                const glyphs = [];
+                                
+                                // --- 核心修复：处理 .notdef ---
+                                // 尝试获取索引为0的glyph
+                                const notdefGlyph = font.glyphs.get(0);
+                                if (notdefGlyph) {
+                                    glyphs.push(notdefGlyph);
+                                } else {
+                                    // 极端情况防御
+                                    glyphs.push(new opentype.Glyph({
+                                        name: '.notdef', unicode: 0, advanceWidth: 500, path: new opentype.Path()
+                                    }));
+                                }
+                                
+                                const charArray = chars.split('');
+                                for (let i = 0; i < charArray.length; i++) {
+                                     const char = charArray[i];
+                                     const glyph = font.charToGlyph(char);
+                                     // 确保不是重复添加 .notdef
+                                     if (glyph && glyph !== notdefGlyph) {
+                                         glyphs.push(glyph);
+                                     }
+                                }
+                                
+                                // --- 核心修复：保留原始 Metrix ---
+                                // 必须保留 unitsPerEm 等信息，否则字体大小全乱
+                                const newFont = new opentype.Font({
+                                    familyName: font.names.fontFamily?.en || "SubsetFont",
+                                    styleName: font.names.fontSubfamily?.en || "Regular",
+                                    unitsPerEm: font.unitsPerEm,
+                                    ascender: font.ascender,
+                                    descender: font.descender,
+                                    glyphs: glyphs
+                                });
+                                
+                                finalBuffer = newFont.toArrayBuffer();
+                                
+                                // 简单的有效性检查
+                                if (finalBuffer.byteLength < 100) throw new Error("Generated font too small");
+
+                                statusMessage.value = `Subset: ${(finalBuffer.byteLength/1024).toFixed(1)}KB`;
+                            } catch (err) {
+                                console.error(err);
+                                if (!confirm("裁剪失败 (Subsetting Failed): \n" + err.message + "\n\n点击'确定'将使用全量导出 (文件较大)，点击'取消'中止。")) {
+                                    processing.value = false;
+                                    return;
+                                }
+                                finalBuffer = arrayBuffer; // Fallback
+                            }
+                        } else {
+                            finalBuffer = arrayBuffer;
+                        }
+
+                        resultBytes.value = new Uint8Array(finalBuffer);
+                        await convertToHexAsync(resultBytes.value);
+
+                    } catch (e) {
+                        console.error(e);
+                        alert("Error: " + e.message);
+                    } finally {
+                        processing.value = false;
+                    }
+                };
+
+                const convertToHexAsync = async (data) => {
+                    const total = data.length;
+                    let output = [];
+                    
+                    const safeName = fileName.value.replace(/\./g, '_').replace(/[^a-zA-Z0-9_]/g, '').toUpperCase();
+                    output.push(`#ifndef _BINARY_${safeName}_H_`);
+                    output.push(`#define _BINARY_${safeName}_H_`);
+                    output.push(``);
+                    output.push(`// Original File: ${fileName.value}`);
+                    output.push(`// Size: ${total} bytes`);
+                    output.push(`const unsigned char ${safeName.toLowerCase()}_data[${total}] = {`);
+                    
+                    let currentLine = "  ";
+                    const chunkSize = [1024, 4096, 10240, 51200, 102400][cpuLevel.value - 1];
+                    
+                    for (let i = 0; i < total; i++) {
+                        const byte = data[i];
+                        const hex = '0x' + ('00' + byte.toString(16).toUpperCase()).slice(-2);
+                        currentLine += hex + ', ';
+                        
+                        if ((i + 1) % 12 === 0) {
+                            output.push(currentLine);
+                            currentLine = "  ";
+                        }
+
+                        if (i % chunkSize === 0) {
+                            progress.value = Math.floor((i / total) * 100);
+                            statusMessage.value = `${t('processing')} ${progress.value}%`;
+                            await new Promise(r => setTimeout(r, 0));
+                        }
+                    }
+                    
+                    if (currentLine.trim() !== "") output.push(currentLine);
+                    output.push(`};`);
+                    output.push(``);
+                    output.push(`#endif`);
+                    
+                    resultCode.value = output.join('\n');
+                    progress.value = 100;
+                    statusMessage.value = t('result_title');
+                };
+
+                const resultCodePreview = computed(() => {
+                    if (!resultCode.value) return '';
+                    const lines = resultCode.value.split('\n');
+                    return lines.length > 50 ? lines.slice(0, 50).join('\n') + `\n... (${lines.length - 50} more lines)` : resultCode.value;
+                });
+                
+                const resultSizeStr = computed(() => {
+                    if(!resultCode.value) return '';
+                    return (resultCode.value.length / 1024 / 1024).toFixed(2) + ' MB (Src)';
+                });
+
+                const downloadHeader = () => {
+                    const blob = new Blob([resultCode.value], { type: 'text/plain' });
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = fileName.value.split('.')[0] + '.h';
+                    a.click();
+                    URL.revokeObjectURL(url);
+                };
+                
+                const copyToClipboard = () => {
+                    navigator.clipboard.writeText(resultCode.value);
+                    alert("Copied to clipboard!");
+                };
+
+                return {
+                    lang, t, toggleLang,
+                    file, fileName, fileSize, fileLoaded, handleFileChange,
+                    enableSubset, presets, customText, previewCharCount,
+                    cpuLevel, batchSizeLabel, processing, progress, statusMessage,
+                    startConversion, resultCode, resultCodePreview, resultSizeStr, downloadHeader, copyToClipboard
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>

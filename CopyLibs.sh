@@ -40,6 +40,10 @@ rm -r -f "./src/cache"
 rm -r -f "./src/sfnt"
 rm -r -f "./src/smooth"
 rm -r -f "./src/truetype"
+rm -r -f "./src/cff"
+rm -r -f "./src/psaux"
+rm -r -f "./src/pshinter"
+rm -r -f "./src/psnames"
 rm -r -f "./src/ft2build.h"
 
 echo "** Start Copying the necessary files **"
@@ -90,6 +94,42 @@ fi
 cp -r $targetPath "./src"
 
 childDir="truetype"
+targetPath="${FreeTypeDir}/src/${childDir}"
+echo "Copying [${targetPath}]"
+if [ ! -d $targetPath ]; then
+	echo "${RED}Not Found ${targetPath}${NC}"
+	exit
+fi
+cp -r $targetPath "./src"
+
+childDir="cff"
+targetPath="${FreeTypeDir}/src/${childDir}"
+echo "Copying [${targetPath}]"
+if [ ! -d $targetPath ]; then
+	echo "${RED}Not Found ${targetPath}${NC}"
+	exit
+fi
+cp -r $targetPath "./src"
+
+childDir="psaux"
+targetPath="${FreeTypeDir}/src/${childDir}"
+echo "Copying [${targetPath}]"
+if [ ! -d $targetPath ]; then
+	echo "${RED}Not Found ${targetPath}${NC}"
+	exit
+fi
+cp -r $targetPath "./src"
+
+childDir="pshinter"
+targetPath="${FreeTypeDir}/src/${childDir}"
+echo "Copying [${targetPath}]"
+if [ ! -d $targetPath ]; then
+	echo "${RED}Not Found ${targetPath}${NC}"
+	exit
+fi
+cp -r $targetPath "./src"
+
+childDir="psnames"
 targetPath="${FreeTypeDir}/src/${childDir}"
 echo "Copying [${targetPath}]"
 if [ ! -d $targetPath ]; then

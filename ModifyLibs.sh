@@ -34,8 +34,6 @@ echo "Processing ${target}"
 sed -i \
 -e "s|^\(#define FT_CONFIG_OPTION_USE_LZW\)|//\1|" \
 -e "s|^\(#define FT_CONFIG_OPTION_USE_ZLIB\)|//\1|" \
--e "s|^\(#define FT_CONFIG_OPTION_POSTSCRIPT_NAMES\)|//\1|" \
--e "s|^\(#define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST\)|//\1|" \
 -e "s|^\(#define FT_CONFIG_OPTION_MAC_FONTS\)|//\1|" \
 -e "s|^\(#define FT_CONFIG_OPTION_INCREMENTAL\)|//\1|" \
 -e "s|^\(#define TT_CONFIG_OPTION_EMBEDDED_BITMAPS\)|//\1|" \
@@ -71,6 +69,10 @@ sed -i \
 -e "s|^.*\(FT_USE_MODULE.*tt_driver_class.*\)|\1|" \
 -e "s|^.*\(FT_USE_MODULE.*sfnt_module_class.*\)|\1|" \
 -e "s|^.*\(FT_USE_MODULE.*ft_smooth_renderer_class.*\)|\1|" \
+-e "s|^.*\(FT_USE_MODULE.*cff_driver_class.*\)|\1|" \
+-e "s|^.*\(FT_USE_MODULE.*psaux_module_class.*\)|\1|" \
+-e "s|^.*\(FT_USE_MODULE.*psnames_module_class.*\)|\1|" \
+-e "s|^.*\(FT_USE_MODULE.*pshinter_module_class.*\)|\1|" \
 $target
 
 

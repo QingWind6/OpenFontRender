@@ -41,6 +41,10 @@ Remove-Item "./src/cache" -Recurse -Force -ErrorAction Ignore
 Remove-Item "./src/sfnt" -Recurse -Force -ErrorAction Ignore
 Remove-Item "./src/smooth" -Recurse -Force -ErrorAction Ignore
 Remove-Item "./src/truetype" -Recurse -Force -ErrorAction Ignore
+Remove-Item "./src/cff" -Recurse -Force -ErrorAction Ignore
+Remove-Item "./src/psaux" -Recurse -Force -ErrorAction Ignore
+Remove-Item "./src/pshinter" -Recurse -Force -ErrorAction Ignore
+Remove-Item "./src/psnames" -Recurse -Force -ErrorAction Ignore
 Remove-Item "./src/ft2build.h" -Recurse -Force -ErrorAction Ignore
 
 $FreeTypeDir = $targetDirs[0]
@@ -94,6 +98,42 @@ if (!(Test-Path $targetPath)) {
 Copy-Item $targetPath -destination ("./src/" + $childDir) -recurse
 
 $childDir = "truetype"
+$targetPath = $FreeTypeDir.Name + "/src/" + $childDir
+Write-Output ("Copying [" + $targetPath + "]")
+if (!(Test-Path $targetPath)) {
+	Write-Host "Not Found " + $targetPath -ForegroundColor Red
+	exit
+}
+Copy-Item $targetPath -destination ("./src/" + $childDir) -recurse
+
+$childDir = "cff"
+$targetPath = $FreeTypeDir.Name + "/src/" + $childDir
+Write-Output ("Copying [" + $targetPath + "]")
+if (!(Test-Path $targetPath)) {
+	Write-Host "Not Found " + $targetPath -ForegroundColor Red
+	exit
+}
+Copy-Item $targetPath -destination ("./src/" + $childDir) -recurse
+
+$childDir = "psaux"
+$targetPath = $FreeTypeDir.Name + "/src/" + $childDir
+Write-Output ("Copying [" + $targetPath + "]")
+if (!(Test-Path $targetPath)) {
+	Write-Host "Not Found " + $targetPath -ForegroundColor Red
+	exit
+}
+Copy-Item $targetPath -destination ("./src/" + $childDir) -recurse
+
+$childDir = "pshinter"
+$targetPath = $FreeTypeDir.Name + "/src/" + $childDir
+Write-Output ("Copying [" + $targetPath + "]")
+if (!(Test-Path $targetPath)) {
+	Write-Host "Not Found " + $targetPath -ForegroundColor Red
+	exit
+}
+Copy-Item $targetPath -destination ("./src/" + $childDir) -recurse
+
+$childDir = "psnames"
 $targetPath = $FreeTypeDir.Name + "/src/" + $childDir
 Write-Output ("Copying [" + $targetPath + "]")
 if (!(Test-Path $targetPath)) {

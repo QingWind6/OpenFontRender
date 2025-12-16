@@ -31,8 +31,6 @@ Write-Host ("Processing " + $target)
 # Disable some options
 $(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_USE_LZW)", "//`$1" | Set-Content $target
 $(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_USE_ZLIB)", "//`$1" | Set-Content $target
-$(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_POSTSCRIPT_NAMES)", "//`$1" | Set-Content $target
-$(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_ADOBE_GLYPH_LIST)", "//`$1" | Set-Content $target
 $(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_MAC_FONTS)", "//`$1" | Set-Content $target
 $(Get-Content $target) -replace "^(#define FT_CONFIG_OPTION_INCREMENTAL)", "//`$1" | Set-Content $target
 $(Get-Content $target) -replace "^(#define TT_CONFIG_OPTION_EMBEDDED_BITMAPS)", "//`$1" | Set-Content $target
@@ -63,6 +61,10 @@ $(Get-Content $target) -replace "^(FT_USE_MODULE.*)", "//`$1" | Set-Content $tar
 $(Get-Content $target) -replace "^.*(FT_USE_MODULE.*tt_driver_class.*)", "`$1" | Set-Content $target
 $(Get-Content $target) -replace "^.*(FT_USE_MODULE.*sfnt_module_class.*)", "`$1" | Set-Content $target
 $(Get-Content $target) -replace "^.*(FT_USE_MODULE.*ft_smooth_renderer_class.*)", "`$1" | Set-Content $target
+$(Get-Content $target) -replace "^.*(FT_USE_MODULE.*cff_driver_class.*)", "`$1" | Set-Content $target
+$(Get-Content $target) -replace "^.*(FT_USE_MODULE.*psaux_module_class.*)", "`$1" | Set-Content $target
+$(Get-Content $target) -replace "^.*(FT_USE_MODULE.*psnames_module_class.*)", "`$1" | Set-Content $target
+$(Get-Content $target) -replace "^.*(FT_USE_MODULE.*pshinter_module_class.*)", "`$1" | Set-Content $target
 
 
 $target = "./src/freetype/config/ftstdlib.h"
