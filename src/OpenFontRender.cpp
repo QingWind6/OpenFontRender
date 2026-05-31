@@ -132,6 +132,9 @@ OpenFontRender::OpenFontRender() {
 	_debug_level           = OFR_NONE;
 
 	_flags.enable_optimized_drawing = false;
+	_flags.support_vertical = false;
+	_flags.enable_monochrome = false;
+	_monochrome_threshold = 128;
 
 	_ftc_manager     = nullptr;
 	_ftc_cmap_cache  = nullptr;
@@ -842,7 +845,7 @@ uint16_t OpenFontRender::drawHString(
 				// Draw at baseline position
 				
 				FT_BitmapGlyph bit = (FT_BitmapGlyph)aglyph;
-				draw2screen(bit, currentX, baseline_y, _text.fg_color, _text.bg_color);
+				draw2screen(bit, currentX, baseline_y, fg, bg);
 
 				currentX += (aglyph->advance.x >> 16);
 				chars_written++;			
@@ -1306,6 +1309,11 @@ void OpenFontRender::setDebugLevel(uint8_t level) {
 	_debug_level = level;
 }
 
+void OpenFontRender::setMonochrome(bool enable, uint8_t threshold) {
+	_flags.enable_monochrome = enable;
+	_monochrome_threshold = threshold;
+}
+
 /*_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/*/
 //
 //  OpenFontRender Class Public Methods
@@ -1423,6 +1431,42 @@ uint32_t OpenFontRender::getFontMaxHeight() {
 
 void OpenFontRender::draw2screen(FT_BitmapGlyph glyph, uint32_t x, uint32_t y, uint16_t fg, uint16_t bg) {
 	_startWrite();
+
+	if (_flags.enable_monochrome) {
+		for (int32_t _y = 0; _y < glyph->bitmap.rows; ++_y) {
+			int16_t line_start = 0;
+			uint32_t line_width = 0;
+
+			for (int32_t _x = 0; _x < glyph->bitmap.width; ++_x) {
+				const uint8_t alpha = glyph->bitmap.buffer[_y * glyph->bitmap.pitch + _x];
+				const bool draw_fg = alpha != 0 && alpha >= _monochrome_threshold;
+				const int32_t px = _x + x + glyph->left;
+				const int32_t py = _y + y - glyph->top;
+
+				if (draw_fg) {
+					if (line_width == 0) {
+						line_start = px;
+					}
+					line_width++;
+					continue;
+				}
+
+				if (line_width) {
+					_drawFastHLine(line_start, py, line_width, fg);
+					line_width = 0;
+				}
+				if (_text.bg_fill_method == BgFillMethod::Minimum) {
+					_drawPixel(px, py, bg);
+				}
+			}
+
+			if (line_width) {
+				_drawFastHLine(line_start, _y + y - glyph->top, line_width, fg);
+			}
+		}
+		_endWrite();
+		return;
+	}
 
 	if (_flags.enable_optimized_drawing) {
 		// Start of new render code for efficient rendering of pixel runs to a TFT

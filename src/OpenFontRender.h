@@ -287,6 +287,7 @@ public:
 	void getFreeTypeVersion(char *str);
 	void getCredit(char *str);
 	void setDebugLevel(uint8_t level);
+	void setMonochrome(bool enable, uint8_t threshold = 128);
 
 	/*!
 	 * @brief Collectively set up screen control functions.
@@ -358,6 +359,7 @@ private:
 	struct Flags {
 		bool enable_optimized_drawing;
 		bool support_vertical;
+		bool enable_monochrome;
 	};
 	struct Flags _flags;
 
@@ -394,6 +396,6 @@ private:
 	struct TextParameter _text;
 
 	uint8_t _debug_level;
+	uint8_t _monochrome_threshold;
 };
-
 #endif
