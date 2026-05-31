@@ -10,6 +10,8 @@
 
 #include "OpenFontRender.h"
 
+#include <cstdlib>
+
 /*_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/_/*/
 //
 //  Data Structure Definition
@@ -138,6 +140,10 @@ OpenFontRender::OpenFontRender() {
 	_saved_state.drawn_bg_point       = {0, 0};
 	_saved_state.prev_max_font_height = 0;
 	_saved_state.prev_font_size       = 0;
+
+	_file_cache.data = nullptr;
+	_file_cache.size = 0;
+	_file_cache.owns = false;
 }
 
 /*!
@@ -451,6 +457,72 @@ FT_Error OpenFontRender::loadFont(const char *fpath, uint8_t target_face_index) 
 }
 
 /*!
+ * @brief Load font from external memory with optional preload cache.
+ * @param[in] (*fpath) Font file path.
+ * @param[in] (max_cache_bytes) Maximum bytes to preload into memory.
+ * @param[in] (target_face_index) Load font index. Default is 0.
+ * @param[in] (prefer_psram) If true, allocate cache from PSRAM when available.
+ * @return FreeType error code. 0 is success.
+ * @ingroup rendering_api
+ * @note If the file size exceeds max_cache_bytes, it falls back to normal file loading.
+ * @note Pass FILE_CACHE_NO_LIMIT to preload the entire file regardless of size.
+ */
+FT_Error OpenFontRender::loadFontWithCache(const char *fpath,
+                                           size_t max_cache_bytes,
+                                           uint8_t target_face_index,
+                                           bool prefer_psram) {
+	if (max_cache_bytes == FILE_CACHE_DISABLE) {
+		return loadFont(fpath, target_face_index);
+	}
+
+	FT_FILE *file = OFR_fopen(fpath, "rb");
+	if (!file) {
+		return loadFont(fpath, target_face_index);
+	}
+
+	OFR_fseek(file, 0, SEEK_END);
+	long int file_size_long = OFR_ftell(file);
+	if (file_size_long <= 0) {
+		OFR_fclose(file);
+		return loadFont(fpath, target_face_index);
+	}
+	size_t file_size = static_cast<size_t>(file_size_long);
+	OFR_fseek(file, 0, SEEK_SET);
+
+	if (max_cache_bytes != FILE_CACHE_NO_LIMIT && file_size > max_cache_bytes) {
+		debugPrintf((_debug_level & OFR_INFO),
+		            "Font cache skipped: file size (%lu) > max cache (%lu)\n",
+		            (unsigned long)file_size,
+		            (unsigned long)max_cache_bytes);
+		OFR_fclose(file);
+		return loadFont(fpath, target_face_index);
+	}
+
+	unsigned char *buffer = static_cast<unsigned char *>(prefer_psram ? ft_smalloc(file_size) : malloc(file_size));
+	if (!buffer) {
+		debugPrintf((_debug_level & OFR_ERROR), "Font cache alloc failed (%lu bytes)\n", (unsigned long)file_size);
+		OFR_fclose(file);
+		return loadFont(fpath, target_face_index);
+	}
+
+	size_t read_bytes = OFR_fread(buffer, 1, file_size, file);
+	OFR_fclose(file);
+	if (read_bytes != file_size) {
+		debugPrintf((_debug_level & OFR_ERROR), "Font cache read failed (%lu/%lu bytes)\n",
+		            (unsigned long)read_bytes,
+		            (unsigned long)file_size);
+		free(buffer);
+		return loadFont(fpath, target_face_index);
+	}
+
+	_file_cache.data = buffer;
+	_file_cache.size = file_size;
+	_file_cache.owns = true;
+
+	return loadFont(buffer, file_size, target_face_index);
+}
+
+/*!
  * @brief Unload font data.
  * @ingroup rendering_api
  */
@@ -462,6 +534,15 @@ void OpenFontRender::unloadFont() {
 		FT_Done_FreeType(g_FtLibrary);
 
 		delete[] _face_id.filepath;
+		_face_id.filepath = nullptr;
+		_face_id.data     = nullptr;
+		_face_id.data_size = 0;
+	}
+	if (_file_cache.owns && _file_cache.data) {
+		free(_file_cache.data);
+		_file_cache.data = nullptr;
+		_file_cache.size = 0;
+		_file_cache.owns = false;
 	}
 	g_NeedInitialize = true;
 }

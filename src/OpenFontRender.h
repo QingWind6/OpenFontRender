@@ -189,6 +189,8 @@ public:
 	static const unsigned char CACHE_SIZE_MINIMUM     = 1;   ///< FreeType cache size alias.
 	static const unsigned char FT_VERSION_STRING_SIZE = 32;  ///< Minimum string length for FreeType version.
 	static const unsigned char CREDIT_STRING_SIZE     = 128; ///< Minimum string length for FreeType credit.
+	static const size_t FILE_CACHE_DISABLE            = 0;   ///< Disable font file preload cache.
+	static const size_t FILE_CACHE_NO_LIMIT           = static_cast<size_t>(-1); ///< Cache entire font file regardless of size.
 
 	OpenFontRender();
 	void setUseRenderTask(bool enable);
@@ -227,6 +229,10 @@ public:
 
 	FT_Error loadFont(const unsigned char *data, size_t size, uint8_t target_face_index = 0);
 	FT_Error loadFont(const char *fpath, uint8_t target_face_index = 0);
+	FT_Error loadFontWithCache(const char *fpath,
+	                           size_t max_cache_bytes,
+	                           uint8_t target_face_index = 0,
+	                           bool prefer_psram = true);
 	void unloadFont();
 
 	uint16_t drawHString(const char *str,
@@ -361,6 +367,12 @@ private:
 		unsigned long max_bytes;
 	};
 	struct CacheParameter _cache;
+	struct FileCache {
+		unsigned char *data;
+		size_t size;
+		bool owns;
+	};
+	struct FileCache _file_cache;
 
 	struct SavedStateVariables {
 		struct Cursor drawn_bg_point;
